@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC Option Selling Net Profit Calculator</title>
+  <meta name="description" content="Professional BTC option selling net profit calculator for Delta Exchange traders." />
+  <link rel="icon" type="image/jpeg" href="favicon.jpg" />
+  <meta property="og:title" content="BTC Option Selling Net Profit Calculator" />
+  <meta property="og:description" content="Professional BTC option selling net profit calculator for Delta Exchange traders." />
+  <meta property="og:image" content="cover.jpg" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-grid"></div>
+
+  <main class="app-shell">
+    <section class="hero-card glass">
+      <div class="brand-row">
+        <div class="title-block">
+          <span class="eyebrow">Delta Exchange BTC Option Selling</span>
+          <h1>BTC Option Selling Net Profit Calculator</h1>
+          <p>
+            Live USD calculator for professional BTC option selling trades with hardcoded Delta Exchange fee logic,
+            GST, margin, ROI, and target buyback engine.
+          </p>
+        </div>
+
+        <div class="brand-box">
+          <img src="logo.jpg" alt="Minaj Enterprises logo" class="brand-logo" />
+          <div>
+            <div class="brand-name">Minaj Enterprises</div>
+            <div class="brand-tag">A Product of Minaj Enterprises</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel glass inputs-panel">
+        <div class="panel-head">
+          <h2>Trade Inputs</h2>
+          <span class="pill">USD only</span>
+        </div>
+
+        <form id="calculatorForm" class="input-grid" novalidate>
+          <label class="field">
+            <span>Selling Price</span>
+            <input id="sellingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="45" />
+          </label>
+
+          <label class="field">
+            <span>Buying Price <small>(optional)</small></span>
+            <input id="buyingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="40" />
+          </label>
+
+          <label class="field">
+            <span>Lots</span>
+            <input id="lots" type="number" inputmode="numeric" min="1" step="1" placeholder="250" />
+          </label>
+
+          <label class="field">
+            <span>Leverage</span>
+            <input id="leverage" type="number" inputmode="decimal" min="1" step="0.1" placeholder="10" />
+          </label>
+        </form>
+
+        <div class="action-row">
+          <button id="resetBtn" type="button" class="btn btn-secondary">Reset</button>
+          <button id="copyBtn" type="button" class="btn btn-primary">Copy Results</button>
+        </div>
+
+        <div class="constants-card">
+          <div><span>BTC Price</span><strong>$100,000</strong></div>
+          <div><span>Lot Size</span><strong>0.001 BTC</strong></div>
+          <div><span>Maker Fee</span><strong>0.01%</strong></div>
+          <div><span>Premium Cap</span><strong>3.5%</strong></div>
+          <div><span>GST</span><strong>18%</strong></div>
+        </div>
+
+        <div id="statusMessage" class="status-message">Enter trade details to begin.</div>
+      </article>
+
+      <article class="panel glass results-panel">
+        <div class="panel-head">
+          <h2>Live Results</h2>
+          <span id="roiBadge" class="pill pill-positive">Ready</span>
+        </div>
+
+        <div class="result-stack">
+          <div class="result-card">
+            <span>Gross Profit</span>
+            <strong id="grossProfit">--</strong>
+          </div>
+          <div class="result-card">
+            <span>Entry Fee</span>
+            <strong id="entryFee">--</strong>
+          </div>
+          <div class="result-card">
+            <span>Exit Fee</span>
+            <strong id="exitFee">--</strong>
+          </div>
+          <div class="result-card">
+            <span>Total Charges</span>
+            <strong id="totalCharges">--</strong>
+          </div>
+          <div class="result-card">
+            <span>Net Profit</span>
+            <strong id="netProfit">--</strong>
+          </div>
+          <div class="result-card">
+            <span>Margin Used</span>
+            <strong id="marginUsed">--</strong>
+          </div>
+          <div class="result-card accent-card">
+            <span>ROI %</span>
+            <strong id="roiPercent">--</strong>
+          </div>
+          <div class="result-card accent-card">
+            <span>Exact Buyback Price for NET +5%</span>
+            <strong id="targetBuyback">--</strong>
+          </div>
+        </div>
+
+        <div class="fee-breakdown">
+          <div>
+            <span>Entry Fee Logic</span>
+            <p id="entryLogic">--</p>
+          </div>
+          <div>
+            <span>Exit Fee Logic</span>
+            <p id="exitLogic">--</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="disclaimer glass">
+      <p>“This tool is independently built for analytical purposes and is not officially affiliated with Delta Exchange.”</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Minaj Enterprises. All Rights Reserved.</p>
+    <p>Built for Professional Crypto Derivatives Traders</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
