@@ -1,6 +1,5 @@
 // Hardcoded Delta Exchange-style system values for BTC option selling.
 const CONFIG = Object.freeze({
-  btcPrice: 100000,
   lotSizeBtc: 0.001,
   makerFeeRate: 0.0001,
   premiumCapRate: 0.035,
@@ -10,6 +9,7 @@ const CONFIG = Object.freeze({
 
 const elements = {
   form: document.getElementById('calculatorForm'),
+  btcPrice: document.getElementById('btcPrice'),
   sellingPrice: document.getElementById('sellingPrice'),
   buyingPrice: document.getElementById('buyingPrice'),
   lots: document.getElementById('lots'),
@@ -68,11 +68,16 @@ function formatPercent(value) {
   return `${percentFormatter.format(value)}%`;
 }
 
-function getFeeBreakdown(price, lots) {
+function getLotQuantity(lots) {
+  return lots * CONFIG.lotSizeBtc;
+}
+
+function getFeeBreakdown(price, lots, btcPrice) {
   // The fee model is fixed: standard fee vs premium cap, then GST is added.
-  const notionalValue = lots * CONFIG.lotSizeBtc * CONFIG.btcPrice;
+  const lotQuantity = getLotQuantity(lots);
+  const notionalValue = lotQuantity * btcPrice;
   const standardTradingFee = notionalValue * CONFIG.makerFeeRate;
-  const premiumCapFee = CONFIG.premiumCapRate * lots * CONFIG.lotSizeBtc * price;
+  const premiumCapFee = CONFIG.premiumCapRate * lotQuantity * price;
   const effectiveFee = Math.min(standardTradingFee, premiumCapFee);
   const feeBeforeGst = effectiveFee;
   const finalFee = feeBeforeGst * (1 + CONFIG.gstRate);
@@ -83,15 +88,16 @@ function getFeeBreakdown(price, lots) {
     premiumCapFee,
     effectiveFee,
     finalFee,
-    capThresholdPrice: CONFIG.btcPrice * CONFIG.makerFeeRate / CONFIG.premiumCapRate,
+    capThresholdPrice: btcPrice * CONFIG.makerFeeRate / CONFIG.premiumCapRate,
   };
 }
 
-function calculateTrade(sellingPrice, buyingPrice, lots, leverage) {
-  const entry = getFeeBreakdown(sellingPrice, lots);
-  const exit = buyingPrice == null ? null : getFeeBreakdown(buyingPrice, lots);
+function calculateTrade(sellingPrice, buyingPrice, lots, leverage, btcPrice) {
+  const lotQuantity = getLotQuantity(lots);
+  const entry = getFeeBreakdown(sellingPrice, lots, btcPrice);
+  const exit = buyingPrice == null ? null : getFeeBreakdown(buyingPrice, lots, btcPrice);
 
-  const grossProfit = buyingPrice == null ? null : (sellingPrice - buyingPrice) * lots * CONFIG.lotSizeBtc;
+  const grossProfit = buyingPrice == null ? null : (sellingPrice - buyingPrice) * lotQuantity;
   const entryFee = entry.finalFee;
   const exitFee = exit ? exit.finalFee : null;
   const totalCharges = exitFee == null ? null : entryFee + exitFee;
@@ -112,28 +118,30 @@ function calculateTrade(sellingPrice, buyingPrice, lots, leverage) {
   };
 }
 
-function netProfitForExitPrice(exitPrice, sellingPrice, lots, leverage) {
-  const summary = calculateTrade(sellingPrice, exitPrice, lots, leverage);
+function netProfitForExitPrice(exitPrice, sellingPrice, lots, leverage, btcPrice) {
+  const summary = calculateTrade(sellingPrice, exitPrice, lots, leverage, btcPrice);
   return summary.netProfit;
 }
 
-function solveTargetBuybackPrice(sellingPrice, lots, leverage) {
-  const entry = getFeeBreakdown(sellingPrice, lots);
+function solveTargetBuybackPrice(sellingPrice, lots, leverage, btcPrice) {
+  const lotQuantity = getLotQuantity(lots);
+  const entry = getFeeBreakdown(sellingPrice, lots, btcPrice);
   const targetNetProfit = (entry.notionalValue / leverage) * CONFIG.targetRoi;
   const entryFee = entry.finalFee;
   const threshold = entry.capThresholdPrice;
 
   const solveRegionOne = () => {
     // When the exit premium stays below the cap threshold, the exit fee is linear.
-    const numerator = 0.001 * sellingPrice - (entryFee / lots) - (targetNetProfit / lots);
-    const denominator = 0.001 + 0.0000413;
+    const numerator = lotQuantity * sellingPrice - entryFee - targetNetProfit;
+    const denominator = lotQuantity * (1 + (CONFIG.premiumCapRate * (1 + CONFIG.gstRate)));
     return numerator / denominator;
   };
 
   const solveRegionTwo = () => {
     // Above the cap threshold, the exit fee becomes a flat standard-fee amount.
-    const numerator = 0.001 * sellingPrice - (entryFee / lots) - (targetNetProfit / lots) - 0.0118;
-    return numerator / 0.001;
+    const exitStandardFeeAfterGst = lotQuantity * btcPrice * CONFIG.makerFeeRate * (1 + CONFIG.gstRate);
+    const numerator = lotQuantity * sellingPrice - entryFee - targetNetProfit - exitStandardFeeAfterGst;
+    return numerator / lotQuantity;
   };
 
   const regionOnePrice = solveRegionOne();
@@ -146,7 +154,7 @@ function solveTargetBuybackPrice(sellingPrice, lots, leverage) {
     return regionTwoPrice;
   }
 
-  const maxNetProfit = netProfitForExitPrice(0, sellingPrice, lots, leverage);
+  const maxNetProfit = netProfitForExitPrice(0, sellingPrice, lots, leverage, btcPrice);
   if (maxNetProfit == null || maxNetProfit < targetNetProfit) {
     return null;
   }
@@ -156,7 +164,7 @@ function solveTargetBuybackPrice(sellingPrice, lots, leverage) {
   let guard = 0;
 
   while (guard < 60) {
-    const value = netProfitForExitPrice(high, sellingPrice, lots, leverage);
+    const value = netProfitForExitPrice(high, sellingPrice, lots, leverage, btcPrice);
     if (value == null || value <= targetNetProfit) {
       break;
     }
@@ -166,7 +174,7 @@ function solveTargetBuybackPrice(sellingPrice, lots, leverage) {
 
   for (let index = 0; index < 80; index += 1) {
     const mid = (low + high) / 2;
-    const net = netProfitForExitPrice(mid, sellingPrice, lots, leverage);
+    const net = netProfitForExitPrice(mid, sellingPrice, lots, leverage, btcPrice);
 
     if (net == null) {
       return null;
@@ -196,12 +204,13 @@ function setValue(element, value, options = {}) {
 }
 
 function updateUi() {
+  const btcPrice = parseValue(elements.btcPrice.value);
   const sellingPrice = parseValue(elements.sellingPrice.value);
   const buyingPrice = parseValue(elements.buyingPrice.value);
   const lots = parseValue(elements.lots.value);
   const leverage = parseValue(elements.leverage.value);
 
-  const validInputs = sellingPrice != null && sellingPrice > 0 && lots != null && lots > 0 && leverage != null && leverage > 0;
+  const validInputs = btcPrice != null && btcPrice > 0 && sellingPrice != null && sellingPrice > 0 && lots != null && lots > 0 && leverage != null && leverage > 0;
 
   if (!validInputs) {
     setValue(elements.grossProfit, '--');
@@ -214,14 +223,14 @@ function updateUi() {
     setValue(elements.targetBuyback, '--');
     elements.entryLogic.textContent = '--';
     elements.exitLogic.textContent = '--';
-    elements.statusMessage.textContent = 'Enter selling price, lots, and leverage to calculate live results.';
+    elements.statusMessage.textContent = 'Enter BTC price, selling price, lots, and leverage to calculate live results.';
     elements.roiBadge.textContent = 'Ready';
     elements.roiBadge.className = 'pill pill-positive';
     return;
   }
 
-  const summary = calculateTrade(sellingPrice, buyingPrice, lots, leverage);
-  const targetBuyback = solveTargetBuybackPrice(sellingPrice, lots, leverage);
+  const summary = calculateTrade(sellingPrice, buyingPrice, lots, leverage, btcPrice);
+  const targetBuyback = solveTargetBuybackPrice(sellingPrice, lots, leverage, btcPrice);
 
   setValue(elements.grossProfit, summary.grossProfit == null ? 'Enter buyback price' : formatMoney(summary.grossProfit), {
     state: summary.grossProfit >= 0 ? 'positive' : 'negative',
@@ -238,7 +247,7 @@ function updateUi() {
   });
   setValue(elements.targetBuyback, targetBuyback == null ? 'Not achievable' : formatMoney(targetBuyback));
 
-  elements.entryLogic.textContent = `Notional = ${formatMoney(summary.entry.notionalValue)} | Standard fee = ${formatMoney(summary.entry.standardTradingFee)} | Premium cap fee = ${formatMoney(summary.entry.premiumCapFee)} | Final fee after GST = ${formatMoney(summary.entry.finalFee)}`;
+  elements.entryLogic.textContent = `BTC price = ${formatMoney(btcPrice)} | Notional = ${formatMoney(summary.entry.notionalValue)} | Standard fee = ${formatMoney(summary.entry.standardTradingFee)} | Premium cap fee = ${formatMoney(summary.entry.premiumCapFee)} | Final fee after GST = ${formatMoney(summary.entry.finalFee)}`;
 
   if (buyingPrice == null) {
     elements.exitLogic.textContent = 'Buyback price is optional. Enter a buyback price to see the exit fee, total charges, net profit, and ROI.';
@@ -248,7 +257,7 @@ function updateUi() {
     return;
   }
 
-  elements.exitLogic.textContent = `Notional = ${formatMoney(summary.exit.notionalValue)} | Standard fee = ${formatMoney(summary.exit.standardTradingFee)} | Premium cap fee = ${formatMoney(summary.exit.premiumCapFee)} | Final fee after GST = ${formatMoney(summary.exit.finalFee)}`;
+  elements.exitLogic.textContent = `BTC price = ${formatMoney(btcPrice)} | Notional = ${formatMoney(summary.exit.notionalValue)} | Standard fee = ${formatMoney(summary.exit.standardTradingFee)} | Premium cap fee = ${formatMoney(summary.exit.premiumCapFee)} | Final fee after GST = ${formatMoney(summary.exit.finalFee)}`;
   elements.statusMessage.textContent = 'Live trade results updated from your current inputs.';
 
   const positive = summary.netProfit != null && summary.netProfit >= 0;
@@ -279,6 +288,7 @@ async function copyResults() {
 
 function resetCalculator() {
   elements.form.reset();
+  elements.btcPrice.value = '100000';
   updateUi();
 }
 
